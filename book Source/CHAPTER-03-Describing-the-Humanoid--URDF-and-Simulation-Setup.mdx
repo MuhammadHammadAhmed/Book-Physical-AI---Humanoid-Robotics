@@ -1,0 +1,88 @@
+# Chapter 3: Describing the Humanoid - URDF and Simulation Setup
+
+Before a robot can exist, either in simulation or in the real world, it needs a blueprint. In robotics, this blueprint is a detailed digital model that describes its physical structure. The **Unified Robot Description Format (URDF)** is the standard for creating this model in the ROS ecosystem. This chapter covers how to define a humanoid's body using URDF and how to prepare a simulation environment to bring it to life.
+
+## URDF: The Language of Robot Anatomy
+
+URDF is an XML-based format used to describe all the physical elements of a robot. Think of it as a set of nested instructions that define the robot's structure, piece by piece. A complete URDF model is a tree of **links** connected by **joints**.
+
+### Links
+A **link** represents a rigid part of the robot's body, like a torso, an upper arm, or a foot. Each link has several properties:
+- **`<visual>`:** Defines the visual appearance of the link—its shape, color, and texture. This is what you *see* in a simulation. It's often represented by a 3D mesh file (e.g., `.dae` or `.stl`).
+- **`<collision>`:** Defines the geometry of the link for the physics engine. This is what the simulator uses to calculate collisions. It's often a simplified version of the visual mesh (e.g., a cylinder or a box) to make physics calculations faster.
+- **`<inertial>`:** Defines the link's mass, center of mass, and moment of inertia. These properties are crucial for the physics engine to accurately simulate how the link moves under forces and torques.
+
+### Joints
+A **joint** connects two links and defines how they can move relative to each other. Each joint has a **parent** link and a **child** link, forming the tree structure.
+Key properties of a joint include:
+- **`type`:** The most important property, which can be:
+  - **`revolute`:** A hinge joint that rotates around a single axis, like an elbow or a knee. It has defined upper and lower angle limits.
+  - **`continuous`:** A joint that can rotate infinitely around an axis, like a wheel.
+  - **`prismatic`:** A sliding joint that moves along an axis, like a piston. It has defined limits.
+  - **`fixed`:** A rigid connection that fuses two links, allowing no relative motion. This is useful for building complex, multi-part links.
+- **`<axis>`:** A vector that specifies the axis of rotation or translation for revolute, continuous, and prismatic joints.
+- **`<origin>`:** The pose (position and orientation) of the joint relative to the parent link's origin.
+
+By chaining links and joints, you can construct a complete kinematic tree of a humanoid, from its base `torso` link down to the `fingertip` links.
+
+## Building a Humanoid Model with URDF
+
+Let's look at a simplified URDF snippet for an arm:
+
+```xml
+<!-- The base of the robot -->
+<link name="torso"/>
+
+<!-- Connect the upper arm to the torso -->
+<joint name="shoulder_joint" type="revolute">
+  <parent link="torso"/>
+  <child link="upper_arm"/>
+  <origin xyz="0 0.2 0.5" rpy="0 0 0"/>
+  <axis xyz="0 1 0"/>
+  <limit lower="-1.57" upper="1.57" effort="100" velocity="1.0"/>
+</joint>
+
+<link name="upper_arm">
+  <visual>
+    <geometry>
+      <cylinder length="0.4" radius="0.05"/>
+    </geometry>
+  </visual>
+  <collision>
+    <geometry>
+      <cylinder length="0.4" radius="0.05"/>
+    </geometry>
+  </collision>
+  <inertial>
+    <mass value="2.0"/>
+    <inertia ixx="0.1" iyy="0.1" izz="0.01" ixy="0" ixz="0" iyz="0"/>
+  </inertial>
+</link>
+
+<!-- Add more links and joints for the forearm, hand, etc. -->
+```
+This XML code defines a `torso` link and an `upper_arm` link. They are connected by a `revolute` joint named `shoulder_joint`. This structure is repeated for every part of the robot.
+
+## Introduction to Simulation Description Format (SDF)
+
+While URDF is excellent for describing a robot's kinematics, it has limitations. It can only represent a tree structure and lacks tags for describing the environment (like lights, terrain, or other objects).
+
+**Simulation Description Format (SDF)** is a more comprehensive XML format used by the Gazebo simulator. It can describe everything a URDF can, plus:
+- The entire simulation world, including lighting, physics properties, and static objects.
+- Non-kinematic-tree robot structures (closed loops).
+- More detailed sensor models and plugins.
+
+Gazebo works with both formats. You can either use a pure SDF file for both the robot and the world, or you can use a URDF file for your robot and spawn it into an SDF world. Tools exist to convert a URDF into an SDF file, which Gazebo often does internally.
+
+## Preparing the Gazebo Simulation Environment
+
+Once you have a robot description (URDF or SDF), the next step is to set up a simulation environment to test it. **Gazebo** is a powerful, open-source 3D robotics simulator that is tightly integrated with ROS.
+
+Key steps to prepare your simulation:
+1.  **Create a World File:** This is an SDF file that defines the environment. You can add ground planes, walls, furniture, and light sources. Gazebo provides many pre-built models you can use.
+2.  **Define Physics:** In the world file, you can set global physics properties like gravity.
+3.  **Integrate with ROS:** Gazebo communicates with ROS 2 via a set of plugins. The `gazebo_ros_pkgs` bridge allows you to:
+    - Spawn your URDF-based robot into the Gazebo world.
+    - Publish sensor data (from simulated cameras, LiDARs, IMUs) to ROS 2 topics.
+    - Subscribe to ROS 2 topics to control the robot's joints (e.g., a topic that provides velocity commands).
+4.  **Launch the Simulation:** You will typically create a ROS 2 launch file that starts both the Gazebo simulator (loading your world file) and the nodes required to spawn your robot and control it. This allows you to launch the entire simulation and control system with a single command.
